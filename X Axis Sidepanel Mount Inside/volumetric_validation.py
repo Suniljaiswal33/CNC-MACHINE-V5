@@ -1,15 +1,15 @@
 """
 volumetric_validation.py
 
-Download this script into a part folder and run it alongside the two STL files:
-    python volumetric_validation_<PartName>.py
+Place this script in a part folder alongside the two STL files and run it:
+    python volumetric_validation.py
 
 Requires:
     pip install numpy-stl
 
 Expected files in the same folder as this script:
-    <PartName>.stl          — the output/printed STL
-    source_<PartName>.stl  — the original source STL
+    source_<anything>.stl  — the original source STL
+    <anything>.stl         — the output/printed STL (any other .stl in the folder)
 """
 
 import logging
@@ -52,43 +52,54 @@ def compute_volume_from_file(stl_path: Path) -> float:
     return abs(total)
 
 
+# ── STL discovery ─────────────────────────────────────────────────────────────
+
+def find_stl_pair(folder: Path, log):
+    all_stls = list(folder.glob("*.stl"))
+
+    source_files = [f for f in all_stls if f.name.startswith("source_")]
+    output_files = [f for f in all_stls if not f.name.startswith("source_")]
+
+    if not source_files:
+        log.error("No source STL found (expected a file named source_*.stl).")
+        return None, None
+    if len(source_files) > 1:
+        log.error(f"Multiple source STLs found: {[f.name for f in source_files]}. Expected exactly one.")
+        return None, None
+
+    if not output_files:
+        log.error("No output STL found (expected a non-source_* .stl file).")
+        return None, None
+    if len(output_files) > 1:
+        log.error(f"Multiple output STLs found: {[f.name for f in output_files]}. Expected exactly one.")
+        return None, None
+
+    return source_files[0], output_files[0]
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     folder   = Path(__file__).parent.resolve()
-    stem     = Path(__file__).stem                          # e.g. volumetric_validation_MyPart
-    part_name = stem.replace("volumetric_validation_", "", 1)  # e.g. MyPart
-    log_file = stem + ".log"
+    log_file = "volumetric_validation.log"
     log      = setup_logging(folder, log_file)
 
     log.info("=" * 60)
-    log.info(f"{stem}.py started — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    log.info(f"Part name  : {part_name}")
-    log.info(f"Folder     : {folder}")
+    log.info(f"volumetric_validation.py started — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    log.info(f"Folder : {folder}")
 
-    output_path = folder / f"{part_name}.stl"
-    source_path = folder / f"source_{part_name}.stl"
-
-    # ── File presence checks ──────────────────────────────────────────────────
-    missing = []
-    if not output_path.exists():
-        missing.append(str(output_path.name))
-    if not source_path.exists():
-        missing.append(str(source_path.name))
-
-    if missing:
-        for name in missing:
-            log.error(f"File not found: {name}")
-        log.error("Place both STL files in the same folder as this script and re-run.")
+    source_path, output_path = find_stl_pair(folder, log)
+    if not source_path or not output_path:
+        log.error("Place source_<name>.stl and <name>.stl in the same folder and re-run.")
         return
 
-    log.info(f"Output STL : {output_path.name}")
     log.info(f"Source STL : {source_path.name}")
+    log.info(f"Output STL : {output_path.name}")
 
     # ── Volume comparison ─────────────────────────────────────────────────────
     try:
-        vol_output = compute_volume_from_file(output_path)
         vol_source = compute_volume_from_file(source_path)
+        vol_output = compute_volume_from_file(output_path)
 
         abs_diff = abs(vol_output - vol_source)
         pct_diff = (abs_diff / vol_source * 100) if vol_source != 0 else float("inf")

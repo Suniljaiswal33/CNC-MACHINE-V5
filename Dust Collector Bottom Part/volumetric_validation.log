@@ -1,0 +1,10 @@
+2026-06-09 18:06:29  INFO      ============================================================
+2026-06-09 18:06:29  INFO      volumetric_validation.py started — 2026-06-09 18:06:29
+2026-06-09 18:06:29  INFO      Folder : /Users/softage/Documents/GitHub/CNC-MACHINE-V5/Dust Collector Bottom Part
+2026-06-09 18:06:29  INFO      Source STL : source_Dust Collector Bottom Part.stl
+2026-06-09 18:06:29  INFO      Output STL : Dust_Collector_Bottom_Part.stl
+2026-06-09 18:06:29  INFO      Source volume : 20800.24 mm³
+2026-06-09 18:06:29  INFO      Output volume : 20788044.00 mm³
+2026-06-09 18:06:29  INFO      Difference    : 20767244.00 mm³  (99841.38%)
+2026-06-09 18:06:29  INFO      ============================================================
+2026-06-09 18:06:29  INFO      Log saved to: /Users/softage/Documents/GitHub/CNC-MACHINE-V5/Dust Collector Bottom Part/volumetric_validation.log

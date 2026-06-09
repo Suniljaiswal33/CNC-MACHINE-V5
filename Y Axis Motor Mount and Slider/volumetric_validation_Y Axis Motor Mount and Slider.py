@@ -1,33 +1,23 @@
 """
 volumetric_validation.py
 
-Download this script from a part folder on GitHub and run it:
-    python volumetric_validation.py
+Download this script into a part folder and run it alongside the two STL files:
+    python volumetric_validation_<PartName>.py
 
 Requires:
-    pip install numpy-stl requests
+    pip install numpy-stl
 
-Setup (one time only):
-    Mac/Linux: export GITHUB_TOKEN="your_token_here"
-    Windows:   setx GITHUB_TOKEN "your_token_here"
+Expected files in the same folder as this script:
+    <PartName>.stl          — the output/printed STL
+    source_<PartName>.stl  — the original source STL
 """
 
 import logging
-import os
-import tempfile
 from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-import requests
 from stl import mesh
-
-
-# Log file named after the script: volumetric_validation_PartName.log
-
-# URLs injected automatically by distribute_validation_script.py
-OUTPUT_URL = "https://raw.githubusercontent.com/sft-01/CNC-MACHINE-V5/main/Y%20Axis%20Motor%20Mount%20and%20Slider/Y%20Axis%20Motor%20Mount%20and%20Slider.stl"
-SOURCE_URL = "https://raw.githubusercontent.com/sft-01/CNC-MACHINE-V5/main/Y%20Axis%20Motor%20Mount%20and%20Slider/source_Y%20Axis%20Motor%20Mount%20and%20Slider.stl"
 
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
@@ -54,71 +44,51 @@ def signed_volume_of_triangle(v0, v1, v2):
     return np.dot(v0, np.cross(v1, v2)) / 6.0
 
 
-def compute_volume_from_file(stl_path: str) -> float:
-    m = mesh.Mesh.from_file(stl_path)
+def compute_volume_from_file(stl_path: Path) -> float:
+    m = mesh.Mesh.from_file(str(stl_path))
     total = 0.0
     for triangle in m.vectors:
         total += signed_volume_of_triangle(triangle[0], triangle[1], triangle[2])
     return abs(total)
 
 
-# ── GitHub download ───────────────────────────────────────────────────────────
-
-def download_stl(url: str, token: str, log, save_to: Path = None) -> str | None:
-    log.debug(f"Downloading: {url}")
-    headers = {"Authorization": f"token {token}"}
-    try:
-        response = requests.get(url, headers=headers, timeout=30)
-        if response.status_code == 200:
-            save_path = save_to if save_to else Path(tempfile.mktemp(suffix=".stl"))
-            save_path.write_bytes(response.content)
-            log.debug(f"Downloaded OK — {len(response.content)} bytes → {save_path.name}")
-            return str(save_path)
-        else:
-            log.error(f"HTTP {response.status_code} — {url}")
-            return None
-    except Exception as e:
-        log.error(f"Download failed: {e}")
-        return None
-
-
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    folder = Path(__file__).parent.resolve()
-    log_file = Path(__file__).stem + ".log"
-    log    = setup_logging(folder, log_file)
+    folder   = Path(__file__).parent.resolve()
+    stem     = Path(__file__).stem                          # e.g. volumetric_validation_MyPart
+    part_name = stem.replace("volumetric_validation_", "", 1)  # e.g. MyPart
+    log_file = stem + ".log"
+    log      = setup_logging(folder, log_file)
 
     log.info("=" * 60)
-    log.info(f"volumetric_validation.py started — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    log.info(f"{stem}.py started — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    log.info(f"Part name  : {part_name}")
+    log.info(f"Folder     : {folder}")
 
-    # PAT check
-    token = os.environ.get("GITHUB_TOKEN")
-    if not token:
-        log.error("GITHUB_TOKEN environment variable not set.")
-        log.error("  Mac/Linux: export GITHUB_TOKEN='your_token_here'")
-        log.error("  Windows:   setx GITHUB_TOKEN 'your_token_here'")
+    output_path = folder / f"{part_name}.stl"
+    source_path = folder / f"source_{part_name}.stl"
+
+    # ── File presence checks ──────────────────────────────────────────────────
+    missing = []
+    if not output_path.exists():
+        missing.append(str(output_path.name))
+    if not source_path.exists():
+        missing.append(str(source_path.name))
+
+    if missing:
+        for name in missing:
+            log.error(f"File not found: {name}")
+        log.error("Place both STL files in the same folder as this script and re-run.")
         return
 
-    log.info(f"Output URL : {OUTPUT_URL}")
-    log.info(f"Source URL : {SOURCE_URL}")
+    log.info(f"Output STL : {output_path.name}")
+    log.info(f"Source STL : {source_path.name}")
 
-    # Save STLs to same folder as the script
-    output_filename = OUTPUT_URL.split("/")[-1].replace("%20", " ")
-    source_filename = SOURCE_URL.split("/")[-1].replace("%20", " ")
-    output_local    = folder / output_filename
-    source_local    = folder / source_filename
-
-    output_tmp = download_stl(OUTPUT_URL, token, log, save_to=output_local)
-    source_tmp = download_stl(SOURCE_URL, token, log, save_to=source_local)
-
-    if not output_tmp or not source_tmp:
-        log.error("Could not download one or both STL files. Aborting.")
-        return
-
+    # ── Volume comparison ─────────────────────────────────────────────────────
     try:
-        vol_output = compute_volume_from_file(str(output_local))
-        vol_source = compute_volume_from_file(str(source_local))
+        vol_output = compute_volume_from_file(output_path)
+        vol_source = compute_volume_from_file(source_path)
 
         abs_diff = abs(vol_output - vol_source)
         pct_diff = (abs_diff / vol_source * 100) if vol_source != 0 else float("inf")
